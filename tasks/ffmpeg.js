@@ -22,7 +22,7 @@ var getExtension =function (filename) {
 };
 
 var gruntFFmpeg = {
-  command: function (input, output, options, callback) {
+  command: function (input, output, options, callback, filesizes) {
     // Debault options
     var ff = new FFmpeg({ source: input })
         .withAudioBitrate('128k')
@@ -37,7 +37,29 @@ var gruntFFmpeg = {
           callback();
         })
         .on('end', function() {
+          var originalSize = fs.statSync(input).size;
+          var originalSizeKB = Math.round((originalSize/1000)*100)/100;
+
+          var newSize = fs.statSync(output).size;
+          var newSizeKB = Math.round((newSize/1000)*100)/100;
+
+          var ratio = newSize/originalSize;
+          var difference = Math.round((ratio*100)*100)/100;
+
+          var word = 'reduction';
+          var color = 'cyan';
+
+          if (ratio > 1) {
+            word = 'increase';
+            color = 'red';
+          }
+
           log(' ✓ '.green + input + ' » ' + output.cyan);
+          log('   Filesize: ' + (newSizeKB + ' kB')[color] + ' (' + (difference + '% ' + word)[color] + ' from ' + originalSizeKB + ' kB)');
+
+          filesizes.original += originalSize;
+          filesizes.exported += newSize;
+
           callback();
         });
 
@@ -117,6 +139,12 @@ module.exports = function(grunt) {
 
     log = grunt.log.writeln;
 
+    var done = this.async();
+    var filesizes = {
+      original: 0,
+      exported: 0
+    };
+
     eachAsync(this.files, function (el, i, next) {
       if(fs.existsSync(el.src[0])) {
         if(!fs.existsSync(el.dest)) {
@@ -125,13 +153,31 @@ module.exports = function(grunt) {
           grunt.file.write(el.dest, '');
         }
 
-        gruntFFmpeg.command(el.src[0], el.dest, options, next);
+        gruntFFmpeg.command(el.src[0], el.dest, options, next, filesizes);
 
       } else {
         log(i + '. input file not found: '.red + el.src[0]);
         next();
       }
 
-    }, this.async());
+    }, function () {
+      var originalSize = filesizes.original;
+      var originalSizeKB = Math.round((originalSize/1000)*100)/100;
+
+      var newSize = filesizes.exported;
+      var newSizeKB = Math.round((newSize/1000)*100)/100;
+
+      var ratio = newSize/originalSize;
+      var difference = Math.round((ratio*100)*100)/100;
+
+      var word = (ratio <= 1) ? 'reduction' : 'increase';
+
+      newSizeKB = '' + newSizeKB;
+      var color = (ratio <= 1) ? 'cyan': 'red';
+
+      log('Total Filesize: ' + (newSizeKB + ' kB')[color] + ' (' + (difference + '% ' + word)[color] + ' from ' + originalSizeKB + ' kB)');
+
+      done();
+    });
   });
 };

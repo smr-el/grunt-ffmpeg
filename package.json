@@ -42,6 +42,7 @@
     "fluent-ffmpeg"
   ],
   "dependencies": {
+    "filesize": "^3.1.2",
     "fluent-ffmpeg": "^1.7.1",
     "each-async": "^0.1.2",
     "lodash-node": "^2.4.1"
